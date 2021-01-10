@@ -239,7 +239,7 @@ model.compile(optimizer='adam',loss='mse')
 model.fit(x=X_train,
           y=y_train.values,
           validation_data=(X_test,y_test.values),
-          batch_size=32,epochs=400)
+          batch_size=32,epochs=150)
 
 #kalau ada error, coba di bagian deklarasi variabel X dan y, belakangnya ditambahin/diilangin values(), yg ini misal e X = data.drop('SalePrice', axis=1).values()
 
@@ -268,46 +268,158 @@ losses.plot()
 
 # Jika garis oranye semakin lama semakin ke atas, itu berarti overfitting. Jika garis biru yang ke atas, berarti underfitting
 # Beberapa cara mengatasinya yaitu mengubuah jumlah epochs, menambah/mengurangi jumlah hidden layer, menambah/mengurangi perceptron/node/neuron.
+# 
+# Lalu ada juga yang namanya fungsi Dropout. Jadi kita membuang sebagian fungsi aktivasi
+# <img src="figure/drop.png">
+# 
+# Selain itu bisa juga menambahkan fungsi Early Stopping, yang berguna untuk memberhentikan pembelajaran kalau diindikasikan over/underfit.
+# 
+# <img src="figure/early.png">
 
-# ### Model Evaluation 
+# Misal aja nih, ternyata hasilnya overfit. Nah kita lakuin ini:
 
 # In[27]:
 
 
-from sklearn.metrics import mean_squared_error,mean_absolute_error,explained_variance_score
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 
 
 # In[28]:
 
 
-X_test
+early_stop = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=25)
 
+
+# mode ada `min`, `max`, dan `auto`.
+# 
+# `min` bakal ngeberhentiin training kalau nilai yang dimonitor berhenti berkurang.
+# 
+# `max` bakal ngeberhentiin training kalau nilai yang dimonitor berhenti berhenti naik. 
+# 
+# `auto` pokoknya bakal ngeberhentiin klo ada kejadian di atas.
+# 
+# `patience` itu misalnya gini, diindikasiin di epoch ke 100 dia overfitting, nah dia bakal berhenti melakukan training ketika epochnya 100+`patience`, di atas patience=25, jadi dia bakal berhenti pas epoch ke 125. bisa juga diisi 0.
 
 # In[29]:
 
 
-predictions = model.predict(X_test)
+model = Sequential()
 
+model.add(Dense(6,activation='relu')) #input layer
+model.add(Dropout(0.5))
+model.add(Dense(6,activation='relu')) #hidden layer
+model.add(Dropout(0.5))
+model.add(Dense(1)) #output layer
+
+model.compile(optimizer='adam',loss='mse') 
+
+
+# `Dropout`(0.5) itu mksdnya memberhentikan setengah aktivation function, jadi networknya ga jalan
 
 # In[30]:
 
 
-mean_absolute_error(y_test,predictions) #mean absolute error antara y test (nilai asli) dengan y prediction
+model.fit(x=X_train, 
+          y=y_train, 
+          epochs=150,
+          validation_data=(X_test, y_test), verbose=2,
+          callbacks=[early_stop])
 
 
 # In[31]:
 
 
-np.sqrt(mean_squared_error(y_test,predictions)) #root mean square error antara y test (nilai asli) dengan y prediction
+losses = pd.DataFrame(model.history.history)
 
 
 # In[32]:
 
 
-explained_variance_score(y_test,predictions) #nilai varians yang bisa dijelaskan oleh model
+losses.plot()
 
 
 # In[33]:
+
+
+early_stop = EarlyStopping(monitor='val_loss', mode='max', verbose=1, patience=25)
+
+
+# In[34]:
+
+
+model = Sequential()
+
+model.add(Dense(6,activation='relu')) #input layer
+model.add(Dense(6,activation='relu')) #hidden layer
+model.add(Dense(1)) #output layer
+
+model.compile(optimizer='adam',loss='mse') 
+
+
+# In[35]:
+
+
+model.fit(x=X_train, 
+          y=y_train, 
+          epochs=400,
+          validation_data=(X_test, y_test), verbose=2,
+          callbacks=[early_stop])
+
+
+# In[36]:
+
+
+losses = pd.DataFrame(model.history.history)
+
+
+# In[37]:
+
+
+losses.plot()
+
+
+# Ternyata dipakein dropout malah gabagus hasilnya.
+
+# ### Model Evaluation 
+
+# In[38]:
+
+
+from sklearn.metrics import mean_squared_error,mean_absolute_error,explained_variance_score
+
+
+# In[39]:
+
+
+X_test
+
+
+# In[40]:
+
+
+predictions = model.predict(X_test)
+
+
+# In[41]:
+
+
+mean_absolute_error(y_test,predictions) #mean absolute error antara y test (nilai asli) dengan y prediction
+
+
+# In[42]:
+
+
+np.sqrt(mean_squared_error(y_test,predictions)) #root mean square error antara y test (nilai asli) dengan y prediction
+
+
+# In[43]:
+
+
+explained_variance_score(y_test,predictions) #nilai varians yang bisa dijelaskan oleh model
+
+
+# In[44]:
 
 
 # Our predictions
@@ -317,13 +429,13 @@ plt.scatter(y_test,predictions)
 plt.plot(y_test,y_test,'r')
 
 
-# In[34]:
+# In[45]:
 
 
 errors = y_test.values.reshape(6192, 1) - predictions
 
 
-# In[35]:
+# In[54]:
 
 
 sns.distplot(errors)
@@ -331,20 +443,20 @@ sns.distplot(errors)
 
 # ### Predicting
 
-# In[36]:
+# In[55]:
 
 
 single_house = df.drop(['SalePrice','Latitude', 'Longitude'],axis=1).iloc[0]
 #iloc[0] untuk mengambil data pada baris pertama
 
 
-# In[37]:
+# In[56]:
 
 
 single_house
 
 
-# In[38]:
+# In[57]:
 
 
 single_house = single_house.values.reshape(-1, 6) 
@@ -356,31 +468,31 @@ single_house = single_house.values.reshape(-1, 6)
 # 
 # 6 mksdnya banyak variabel
 
-# In[39]:
+# In[58]:
 
 
 single_house
 
 
-# In[40]:
+# In[59]:
 
 
 single_house = scaler.transform(single_house) #minmaxscaler
 
 
-# In[41]:
+# In[60]:
 
 
 model.predict(single_house)
 
 
-# In[42]:
+# In[61]:
 
 
 df.head(1)
 
 
-# Harga aslinya 4.526, harga yg dipredict 4.3592577
+# Harga aslinya 4.526, harga yg dipredict 4.568731
 # mayan lah ya
 
 #  
