@@ -1,6 +1,5 @@
 # Deep Neural Network - TensorFlow <img src="https://img.shields.io/badge/r-%23276DC3.svg?&style=for-the-badge&logo=r&logoColor=white"/> 
 
-
 Untuk menjalankan kode dibawah perlu install `tensorflow` terliebih
 dahulu. Untuk menginstallnya perlu install Anaconda terlebih dahulu.
 Untuk lengkapnya silahkan ikuti video
@@ -211,7 +210,11 @@ bernilai 2 akan tampil seperti dibawah ini
 ``` r
 model %>% 
       fit(train_images, train_labels, epochs = 5, verbose = 2)
+
+class(train_labels)
 ```
+
+    ## [1] "array"
 
 Evaluate Model
 --------------
@@ -226,9 +229,9 @@ score %>%
       kable()
 ```
 
-|       loss|  accuracy|
-|----------:|---------:|
-|  0.3757677|    0.8667|
+|      loss|  accuracy|
+|---------:|---------:|
+|  0.372153|    0.8667|
 
 Make Predictions
 ----------------
@@ -239,8 +242,8 @@ predictions <- model %>%
 predictions[1, ]
 ```
 
-    ##  [1] 6.861529e-07 7.641380e-07 8.531732e-07 2.111764e-05 1.371032e-06
-    ##  [6] 1.574087e-03 4.125964e-05 1.787935e-01 1.034944e-04 8.194629e-01
+    ##  [1] 5.666955e-06 2.547826e-07 1.768744e-07 3.066127e-08 1.269903e-06
+    ##  [6] 3.705100e-01 1.502483e-06 3.151799e-02 9.242844e-06 5.979539e-01
 
 Sebagai contoh diatas adalah prediksi untuk data pertama. 10 nilai
 diatas merupakan peluang data tersebut masuk ke setiap label. Peluang
@@ -260,7 +263,7 @@ class_pred <- model %>%
 class_pred[1:20]
 ```
 
-    ##  [1] 9 2 1 1 6 1 4 6 5 7 4 5 7 3 4 1 2 2 8 0
+    ##  [1] 9 2 1 1 6 1 4 6 5 7 4 5 5 3 4 1 2 2 8 0
 
 ### Visualisasi
 
@@ -286,10 +289,229 @@ for (i in 1:25) {
 
 ![](dnn-tensorflow_files/figure-markdown_github/unnamed-chunk-19-1.png)
 
+Menggunakan Data Sendiri
+========================
 
+Load data
+---------
 
+``` r
+ipeh <- read.csv("data_Ipeh.csv", header=T)
+ipeh %>%
+  head(10) %>%
+  kable()
+```
 
+|  admit|  gre|   gpa|  rank|
+|------:|----:|-----:|-----:|
+|      0|  380|  3.61|     3|
+|      1|  660|  3.67|     3|
+|      1|  800|  4.00|     1|
+|      1|  640|  3.19|     4|
+|      0|  520|  2.93|     4|
+|      1|  760|  3.00|     2|
+|      1|  560|  2.98|     1|
+|      0|  400|  3.08|     2|
+|      1|  540|  3.39|     3|
+|      0|  700|  3.92|     2|
 
+Normalisasi Data
+----------------
+
+``` r
+normalisasi <- function(r){
+  return((r-min(r))/(max(r)-min(r)))
+}
+
+# normalisasi semua atribut kecuali target class
+for(i in colnames(ipeh[-1])){
+    ipeh[ ,i]=normalisasi(ipeh[ ,i])
+}
+str(ipeh)
+```
+
+    ## 'data.frame':    400 obs. of  4 variables:
+    ##  $ admit: int  0 1 1 1 0 1 1 0 1 0 ...
+    ##  $ gre  : num  0.276 0.759 1 0.724 0.517 ...
+    ##  $ gpa  : num  0.776 0.81 1 0.534 0.385 ...
+    ##  $ rank : num  0.667 0.667 0 1 1 ...
+
+Eksplorsi Data
+--------------
+
+``` r
+ipeh %>% 
+  ggplot(aes(x = as.factor(admit))) + 
+  geom_bar()
+```
+
+![](dnn-tensorflow_files/figure-markdown_github/unnamed-chunk-22-1.png)
+
+``` r
+ipeh %>% 
+  group_by(admit) %>% 
+  summarise(banyak=n()) %>%
+  kable()
+```
+
+|  admit|  banyak|
+|------:|-------:|
+|      0|     273|
+|      1|     127|
+
+Karena kelas tidak balance, maka kelas 0=273 diambil sebanyak kelas
+1=127. sehingga tiap kelas sama sama memiliki 127 observasi.
+
+``` r
+ipehadmit0 <- ipeh %>% filter(admit==0)
+ipehadmit1 <- ipeh %>% filter(admit==1)
+
+sample <- sample(273, 127, T)
+
+ipehadmit0fix <- ipehadmit0[sample, ]
+ipehfix <- rbind(ipehadmit0fix,ipehadmit1)
+
+ipehfix %>% 
+  ggplot(aes(x = as.factor(admit))) + 
+  geom_bar()
+```
+
+![](dnn-tensorflow_files/figure-markdown_github/unnamed-chunk-24-1.png)
+
+Terlihat data sudah balance
+
+Split Data
+----------
+
+``` r
+set.seed(666)
+ipehmat <- as.matrix(ipehfix)
+dimnames(ipehmat) <- NULL
+
+sampel <- sample(2,nrow(ipehmat),replace = T, prob = c(0.8,0.2))
+trainingdat <- ipehmat[sampel==1, ]
+testingdat <- ipehmat[sampel==2, ]
+
+print(paste("Jumlah train data :", nrow(trainingdat), " || Jumlah test data :", nrow(testingdat)))
+```
+
+    ## [1] "Jumlah train data : 206  || Jumlah test data : 48"
+
+``` r
+trainingdatfeature <- trainingdat[ ,2:4]
+testingdatfeature <- testingdat[ ,2:4]
+trainingdattarget <- to_categorical(trainingdat[,1])
+testingdattarget <- to_categorical(testingdat[,1])
+```
+
+Buat Model
+----------
+
+Membuat model deep neural network dengan 3 hidden layer
+
+``` r
+modelkeras <- keras_model_sequential()
+modelkeras %>% 
+    layer_dense(units = 20, activation = 'relu', input_shape = c(3)) %>% 
+    layer_dense(units = 20, activation = 'relu') %>% 
+    layer_dense(units = 20, activation = 'relu') %>% 
+    layer_dense(units = 2, activation = 'sigmoid')
+
+summary(modelkeras)
+```
+
+    ## Model: "sequential_1"
+    ## ________________________________________________________________________________
+    ## Layer (type)                        Output Shape                    Param #     
+    ## ================================================================================
+    ## dense_3 (Dense)                     (None, 20)                      80          
+    ## ________________________________________________________________________________
+    ## dense_4 (Dense)                     (None, 20)                      420         
+    ## ________________________________________________________________________________
+    ## dense_5 (Dense)                     (None, 20)                      420         
+    ## ________________________________________________________________________________
+    ## dense_6 (Dense)                     (None, 2)                       42          
+    ## ================================================================================
+    ## Total params: 962
+    ## Trainable params: 962
+    ## Non-trainable params: 0
+    ## ________________________________________________________________________________
+
+units pada layer\_dense pertama berarti bahwa hidden layer pertama
+memiliki 20 node, activation merupakan fungsi aktivasi yang digunakan,
+pada kasus ini digunakan relu, input\_shape merupakan banyaknya kolom
+pada data training. layer\_dense yang kedua merupakan hidden layer
+kedua, layer\_Dense ketiga merupakan hidden layer ketiga, dst,
+layer\_dense terakhir merupakan layer output, units pada layer ini
+menggambarkan banyaknya kelas yang akan diprediksi, karena kita
+menggunakan admit dan tidak admit (2 kelas), maka units yang digunakan
+adalah 2. sigmoid digunakan untuk karena memiliki nilai 0-1, yang
+digunakan sebagai estimasi peluang masuk ke kelas tertentu.
+
+kompilasi
+---------
+
+``` r
+modelkeras %>% compile(
+     loss = 'binary_crossentropy',
+     optimizer = 'adam',
+     metrics = 'accuracy'
+ )
+```
+
+loss merupakan fungsi los, digunakan binary cross entropy karena kelas
+yang digunakan hanya dua (categorical\_crossentropy untuk ), optimizer
+merupakan metode yang digunakan untuk mengoptimasi loss (seperti
+gradient descent), metrics, merupakan pengukuran yang akan ditampilkan
+saat training model.
+
+Training Model
+--------------
+
+Silahkan ganti `verbose` jadi 1 atau 2 untuk melihat proses runningnya
+
+``` r
+modelkeras %>% fit(
+     trainingdatfeature, 
+     trainingdattarget, 
+     epochs = 300, 
+     batch_size = 20, 
+     validation_split = 0.2,
+     verbose = 0
+ )
+```
+
+epoch merupakan banyaknya pengulangan model melakukan training, semakin
+banyak perulangan semakin banyak waktu yang diperlukan, semakin tinggi
+akurasi yang dihasilkan. batch size merupakan banyaknya data yang
+digunakan dalam sekali epoch. validation split merupakan proporsi data
+yang digunakan untuk validasi.
+
+Testing
+-------
+
+``` r
+set.seed(27)
+classes <- modelkeras %>% predict_classes(testingdatfeature, batch_size = 20)
+table(testingdattarget[,2],classes)
+```
+
+    ##    classes
+    ##      0  1
+    ##   0 27  3
+    ##   1 12  6
+
+Evaluate
+--------
+
+``` r
+score <- modelkeras %>%
+  evaluate(testingdatfeature, testingdattarget, verbose = 0)
+score
+```
+
+    ##      loss  accuracy 
+    ## 0.7211607 0.6875000
 
 
 
