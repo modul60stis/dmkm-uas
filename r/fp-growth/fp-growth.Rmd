@@ -1,0 +1,91 @@
+---
+title: "Fp Growth"
+author: "Tim MOdul"
+date: "11/9/2020"
+output: rmdformats::downcute
+---
+
+
+# Load Library
+library yang dibutuhkan, yaitu **rCBA**. Jika belum terinstall, silahkan install terlebih dahulu dengan perintah `install.packages("rCBA")`.
+
+```{r message=FALSE, warning=FALSE}
+library(rCBA)
+library(knitr)
+```
+
+
+# Load Data
+```{r}
+data <- read.csv("beli_komputer.csv", header=T, sep = ";")
+kable(head((data)))
+```
+
+# Konversi Data
+Ubah tipe variabel menjadi tipe faktor
+```{r}
+data <- data[-1]
+for(i in names(data)){
+  data[,i]= as.factor(data[,i])
+}
+str(data)
+```
+
+# Buat Model
+```{r message=FALSE, warning=FALSE}
+data <- data.frame(data, check.names = FALSE)
+trans <- as(data, "transactions")
+rules <- fpgrowth(trans, support = 0.2, confidence = 0.7, maxLength = 2, 
+                      consequent = "Buy_Computer", parallel = FALSE)
+inspect(rules)
+```
+
+```{r}
+prediksi <- classification(data, rules)
+table(prediksi)
+```
+
+
+# Penerapan Pada Data Iris
+## Buat Model
+```{r message=FALSE, warning=FALSE}
+data("iris")
+train <- sapply(iris,as.factor)
+train <- data.frame(train, check.names=FALSE)
+txns <- as(train,"transactions")
+rules <- fpgrowth(txns, support=0.05, confidence=0.05, maxLength=2, consequent="Species",
+           parallel=FALSE)
+inspect(rules)
+```
+
+## Prediksi
+```{r message=FALSE, warning=FALSE}
+predictions <- classification(train,rules)
+table(predictions)
+```
+
+## Akurasi
+```{r}
+sum(as.character(train$Species)==as.character(predictions),na.rm=TRUE)/length(predictions)
+```
+
+## Prunning
+```{r message=FALSE, warning=FALSE}
+prunedRules <- pruning(train, rules, method="m2cba", parallel=FALSE)
+inspect(prunedRules)
+```
+
+### Prediksi Setelah Prunning
+```{r message=FALSE, warning=FALSE}
+predictions <- classification(train, prunedRules)
+table(predictions)
+```
+
+### Akurasi Setalah Prunning
+```{r}
+sum(as.character(train$Species)==as.character(predictions),na.rm=TRUE)/length(predictions)
+```
+Terlihat Bahwa akurasinya meningkat
+
+
+

@@ -1,0 +1,195 @@
+---
+title: "Deep Neural Network - Tensorflow"
+author: "Tim Modul"
+date: "1/10/2021"
+output: html_document
+---
+
+Untuk menjalankan kode dibawah perlu install `tensorflow` terliebih dahulu. Untuk menginstallnya perlu install Anaconda terlebih dahulu. Untuk lengkapnya silahkan ikuti video [ini](https://www.youtube.com/watch?v=Maf6xmQI-wM) atau langsung dari dokumentasi resminya [disini](https://tensorflow.rstudio.com/installation/)
+
+Kodean dibahwa ini beracu pada artikel [ini](https://tensorflow.rstudio.com/tutorials/beginners/basic-ml/tutorial_basic_classification/)
+
+# Load Library
+```{r message=FALSE, warning=FALSE}
+library(keras)
+library(knitr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+# Import Data
+Data yang digunakan adalah datasets gambar tentang fashion dari library keras
+```{r message=FALSE, warning=FALSE}
+fashion_mnist <- dataset_fashion_mnist()
+
+train_images <- fashion_mnist$train$x
+train_labels <- fashion_mnist$train$y
+
+test_images <- fashion_mnist$test$x
+test_labels <- fashion_mnist$test$y
+```
+
+Setiap gambar terdiri dari 28 x 28 array yang bernilai antara 0-255, yang merepresentasikan warna dalam rgb. Terdapat 10 label dari gambar, sebagai berikut
+
+```{r}
+class_names <- c('T-shirt/top',
+                'Trouser',
+                'Pullover',
+                'Dress',
+                'Coat', 
+                'Sandal',
+                'Shirt',
+                'Sneaker',
+                'Bag',
+                'Ankle boot')
+
+data.frame(Digit = 0:9,
+           Class = class_names) %>%
+      kable()
+```
+
+# Explore Data
+
+## Cek Dimensi Data
+
+```{r}
+dim(train_images)
+```
+```{r}
+dim(train_labels)
+```
+```{r}
+train_labels[1:20]
+```
+
+```{r}
+dim(test_images)
+```
+
+```{r}
+dim(test_labels)
+```
+
+## Liat Gambar
+```{r}
+image_1 <- as.data.frame(train_images[1, , ])
+colnames(image_1) <- seq_len(ncol(image_1))
+image_1$y <- seq_len(nrow(image_1))
+image_1 <- gather(image_1, "x", "value", -y)
+image_1$x <- as.integer(image_1$x)
+
+ggplot(image_1, aes(x = x, y = y, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "black", na.value = NA) +
+  scale_y_reverse() +
+  theme_minimal() +
+  theme(panel.grid = element_blank())   +
+  theme(aspect.ratio = 1) +
+  xlab("") +
+  ylab("")
+```
+
+```{r}
+par(mfcol=c(5,5))
+par(mar=c(0, 0, 1.5, 0), xaxs='i', yaxs='i')
+for (i in 1:25) { 
+  img <- train_images[i, , ]
+  img <- t(apply(img, 2, rev)) 
+  image(1:28, 1:28, img, col = gray((0:255)/255), xaxt = 'n', yaxt = 'n',
+        main = paste(class_names[train_labels[i] + 1]))
+}
+```
+
+# Preprocess Data
+Memperkecil skala dari data. Dibagi 255 karena kita tau batas atasnya 255, sehingga data akan berubah menjadi 0-1
+```{r}
+train_images <- train_images / 255
+test_images <- test_images / 255
+```
+
+# BUild MOdel
+
+## Setup Layer
+```{r message=FALSE, warning=FALSE}
+model <- keras_model_sequential()
+model %>%
+  layer_flatten(input_shape = c(28, 28)) %>%
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dense(units = 64, activation = 'relu') %>%
+  layer_dense(units = 10, activation = 'softmax')
+```
+
+Layer pertama adalah input layer yang akan disesuaikan dengan jumlah pixel pada gambar, yaitu 28 x 28. Layer kedua adalah hidden layer pertama dengan node sebanyak 128 dan activation function relu Layer ketiga adalah hidden layer kedua dengan jumla node 64 dan serta activation function relu. Terakhir adalah output layer yang jumlahnya disesuaikan dengan jumlah labels, activation yang digunakan adalah softmax agar menjamin nilainya antara 0-1
+
+Jika ingin menggunakan lebih banyak hidden layer silahkan ditambahkan saja
+
+## Compile Model
+Tahap ini digunakan untuk mendefinisikan loss function, optimizer yang digunakan dan matriks penilaian yang akan digunakan
+```{r}
+model %>% compile(
+  optimizer = 'adam', 
+  loss = 'sparse_categorical_crossentropy',
+  metrics = c('accuracy')
+)
+```
+
+## Train Model
+argumen `epochs` digunakan untuk mengatur berapa kali model akan melihat data yang. Semakin besar nilainya diharapkan akan semakin bagus modelnya akan tetapi akan memakan waktu penghitngan yang lama. Selain itu semakin besar nilainya akan memungkinkan terjadinya overfitting karena model akan cenderung mengingat data
+
+`verbose` bernilai 0,1,2. Jika 0 maka progress iterasi tiap epochs tidak akan ditampilkan, jika 1 akan ditampilkan dengan jelas, dan jika bernilai 2 akan tampil seperti dibawah ini
+```{r}
+model %>% 
+      fit(train_images, train_labels, epochs = 5, verbose = 2)
+```
+
+## Evaluate Model
+```{r}
+score <- model %>% 
+      evaluate(test_images, test_labels, verbose = 0)
+
+score %>%
+      t() %>%
+      as.data.frame() %>%
+      kable()
+```
+
+## Make Predictions
+```{r}
+predictions <- model %>% 
+      predict(test_images)
+predictions[1, ]
+```
+Sebagai contoh diatas adalah prediksi untuk data pertama. 10 nilai diatas merupakan peluang data tersebut masuk ke setiap label. Peluang terbesar yang akan dipilih
+
+```{r}
+which.max(predictions[1, ])
+```
+
+Sebagai alternatif kita bisa langsung memprediksi label classnya
+```{r}
+class_pred <- model %>% 
+      predict_classes(test_images)
+class_pred[1:20]
+```
+
+### Visualisasi 
+```{r}
+par(mfcol=c(5,5))
+par(mar=c(0, 0, 1.5, 0), xaxs='i', yaxs='i')
+for (i in 1:25) { 
+  img <- test_images[i, , ]
+  img <- t(apply(img, 2, rev)) 
+  predicted_label <- which.max(predictions[i, ]) - 1
+  true_label <- test_labels[i]
+  if (predicted_label == true_label) {
+    color <- '#008800' 
+  } else {
+    color <- '#bb0000'
+  }
+  image(1:28, 1:28, img, col = gray((0:255)/255), xaxt = 'n', yaxt = 'n',
+        main = paste0(class_names[predicted_label + 1], " (",
+                      class_names[true_label + 1], ")"),
+        col.main = color)
+}
+```
