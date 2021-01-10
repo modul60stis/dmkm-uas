@@ -141,6 +141,8 @@ argumen `epochs` digunakan untuk mengatur berapa kali model akan melihat data ya
 ```{r}
 model %>% 
       fit(train_images, train_labels, epochs = 5, verbose = 2)
+
+class(train_labels)
 ```
 
 ## Evaluate Model
